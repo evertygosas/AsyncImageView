@@ -137,9 +137,11 @@ extern NSString *const AsyncImageErrorKey;
  * notifications.
  */
 - (void)loadImageWithURL:(nullable NSURL *)URL
+                 headers:(nullable NSDictionary *)headers
                   target:(nullable id)target
                  success:(nullable SEL)success
                  failure:(nullable SEL)failure;
+
 
 /**
  * Works the same as above, except the action will only be called if the loading
@@ -147,6 +149,7 @@ extern NSString *const AsyncImageErrorKey;
  * notification.
  */
 - (void)loadImageWithURL:(nullable NSURL *)URL
+                 headers:(nullable NSDictionary *)headers
                   target:(nullable id)target
                   action:(nullable SEL)action;
 
@@ -268,6 +271,8 @@ extern NSString *const AsyncImageErrorKey;
  * to 0.4.
  */
 @property (nonatomic, assign) NSTimeInterval crossfadeDuration;
+
+- (void)setImageURL:(NSURL *)imageURL withHeaders:(nullable NSDictionary*)hdr;
 
 @end
 

@@ -66,6 +66,7 @@ NSString *const AsyncImageErrorKey = @"error";
 @property (nonatomic, copy) dispatch_block_t cancellationToken;
 @property (nonatomic, getter = isLoading) BOOL loading;
 @property (atomic, getter = isCancelled) BOOL cancelled;
+@property (nonatomic) NSDictionary *headers;
 
 - (AsyncImageConnection *)initWithURL:(NSURL *)URL
                                 cache:(NSCache *)cache
@@ -94,6 +95,7 @@ NSString *const AsyncImageErrorKey = @"error";
         _target = target;
         _success = success;
         _failure = failure;
+        _headers = nil;
     }
     return self;
 }
@@ -279,9 +281,15 @@ NSString *const AsyncImageErrorKey = @"error";
     }
 
     //begin load
-    NSURLRequest *request = [NSURLRequest requestWithURL:self.URL
-                                             cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
-                                         timeoutInterval:[AsyncImageLoader sharedLoader].loadingTimeout];
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:self.URL
+                                                           cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
+                                                       timeoutInterval:[AsyncImageLoader sharedLoader].loadingTimeout];
+
+    if (self.headers != nil) {
+        for (NSString *key in [self.headers allKeys]) {
+            [request setValue:self.headers[key] forHTTPHeaderField:key];
+        }
+    }
 
     __weak AsyncImageConnection *weakSelf = self;
     NSURLSessionTask *task = [[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, __unused NSURLResponse * _Nullable response, NSError * _Nullable error) {
@@ -459,7 +467,7 @@ NSString *const AsyncImageErrorKey = @"error";
     [self updateQueue];
 }
 
-- (void)loadImageWithURL:(NSURL *)URL target:(id)target success:(SEL)success failure:(SEL)failure
+- (void)loadImageWithURL:(NSURL *)URL headers:(NSDictionary*)headers target:(id)target success:(SEL)success failure:(SEL)failure
 {
     //check cache
     UIImage *image = [self.cache objectForKey:URL];
@@ -486,6 +494,7 @@ NSString *const AsyncImageErrorKey = @"error";
                                                                           target:target
                                                                          success:success
                                                                          failure:failure];
+    connection.headers = headers;
     BOOL added = NO;
     for (NSUInteger i = 0, count = self.connections.count; i < count; i++)
     {
@@ -505,14 +514,14 @@ NSString *const AsyncImageErrorKey = @"error";
     [self updateQueue];
 }
 
-- (void)loadImageWithURL:(NSURL *)URL target:(id)target action:(SEL)action
+- (void)loadImageWithURL:(NSURL *)URL headers:(NSDictionary*)headers target:(id)target action:(SEL)action
 {
-    [self loadImageWithURL:URL target:target success:action failure:nil];
+    [self loadImageWithURL:URL headers:headers target:target success:action failure:nil];
 }
 
 - (void)loadImageWithURL:(NSURL *)URL
 {
-    [self loadImageWithURL:URL target:nil success:nil failure:nil];
+    [self loadImageWithURL:URL headers:nil target:nil success:nil failure:nil];
 }
 
 - (void)cancelLoadingURL:(NSURL *)URL target:(id)target action:(SEL)action
@@ -578,9 +587,13 @@ NSString *const AsyncImageErrorKey = @"error";
 
 @implementation UIImageView(AsyncImageView)
 
+- (void)setImageURL:(NSURL *)imageURL withHeaders:(NSDictionary*)hdr
+{
+        [[AsyncImageLoader sharedLoader] loadImageWithURL:imageURL headers:hdr target:self action:@selector(setImage:)];
+}
 - (void)setImageURL:(NSURL *)imageURL
 {
-	[[AsyncImageLoader sharedLoader] loadImageWithURL:imageURL target:self action:@selector(setImage:)];
+	[[AsyncImageLoader sharedLoader] loadImageWithURL:imageURL headers:nil target:self action:@selector(setImage:)];
 }
 
 - (NSURL *)imageURL
@@ -626,7 +639,7 @@ NSString *const AsyncImageErrorKey = @"error";
     return self;
 }
 
-- (void)setImageURL:(NSURL *)imageURL
+- (void)setImageURL:(NSURL *)imageURL withHeaders:(NSDictionary*)hdr
 {
     UIImage *image = [[AsyncImageLoader sharedLoader].cache objectForKey:imageURL];
     if (image)
@@ -634,7 +647,7 @@ NSString *const AsyncImageErrorKey = @"error";
         self.image = image;
         return;
     }
-    super.imageURL = imageURL;
+    [super setImageURL:imageURL withHeaders:hdr];
     if (self.showActivityIndicator && !self.image && imageURL)
     {
         if (self.activityView == nil)
